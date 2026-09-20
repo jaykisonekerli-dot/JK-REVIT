@@ -61,7 +61,7 @@ fun CameraSheetViewer(
     }
     val modelInstance = rememberModelInstance(
         modelLoader = modelLoader,
-        assetFileLocation = project.modelUrl
+        fileLocation = project.modelUrl
     )
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -123,9 +123,14 @@ fun CameraSheetViewer(
                 fontSize = 17.sp
             )
             Text(
-                if (pose != null) "QR rastreado • modelo acompanhando a prancha"
+                if (pose != null) "QR rastreado • prancha localizada"
                 else "Aponte a câmera para o QR impresso na prancha",
                 color = if (pose != null) Color(0xFF9FE3B1) else Color.White
+            )
+            Text(
+                if (modelInstance != null) "Modelo 3D: CARREGADO"
+                else "Modelo 3D: carregando do Revit...",
+                color = if (modelInstance != null) Color(0xFF9FE3B1) else Color(0xFFFFD180)
             )
 
             Spacer(Modifier.height(8.dp))
