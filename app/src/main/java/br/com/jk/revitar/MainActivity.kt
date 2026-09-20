@@ -2,7 +2,10 @@ package br.com.jk.revitar
 
 import android.Manifest
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.google.ar.core.ArCoreApk
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -28,6 +32,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ArCoreApk.getInstance().checkAvailability(applicationContext)
+
         setContent {
             MaterialTheme {
                 RevitArApp(
@@ -46,6 +52,25 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private fun openArCoreStore(activity: Activity) {
+    val packageName = "com.google.ar.core"
+    try {
+        activity.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("market://details?id=$packageName")
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    } catch (_: ActivityNotFoundException) {
+        activity.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
+            )
+        )
+    }
+}
+
 @Composable
 private fun RevitArApp(ensureCameraPermission: () -> Unit) {
     val context = LocalContext.current
@@ -58,9 +83,53 @@ private fun RevitArApp(ensureCameraPermission: () -> Unit) {
     }
     var loading by remember { mutableStateOf(false) }
     var showAr by remember { mutableStateOf(false) }
+    var arAvailability by remember { mutableStateOf<ArCoreApk.Availability?>(null) }
+
+    fun refreshArAvailability(): ArCoreApk.Availability {
+        val availability = ArCoreApk.getInstance().checkAvailability(activity.applicationContext)
+        arAvailability = availability
+        return availability
+    }
+
+    fun tryOpenAr() {
+        val availability = refreshArAvailability()
+
+        when (availability) {
+            ArCoreApk.Availability.SUPPORTED_INSTALLED -> {
+                ensureCameraPermission()
+                status = "ARCore pronto. Abrindo realidade aumentada..."
+                showAr = true
+            }
+
+            ArCoreApk.Availability.SUPPORTED_APK_TOO_OLD,
+            ArCoreApk.Availability.SUPPORTED_NOT_INSTALLED -> {
+                status = "O Google Play Services para RA precisa ser instalado ou atualizado. Atualize e volte ao app; depois toque novamente em ABRIR RA."
+                openArCoreStore(activity)
+            }
+
+            ArCoreApk.Availability.UNSUPPORTED_DEVICE_NOT_CAPABLE -> {
+                status = "Este celular não é compatível com ARCore. O QR e o projeto funcionam, mas a realidade aumentada não pode ser iniciada neste aparelho."
+            }
+
+            ArCoreApk.Availability.UNKNOWN_CHECKING -> {
+                status = "Verificando compatibilidade do celular com ARCore. Aguarde alguns segundos e toque novamente."
+            }
+
+            ArCoreApk.Availability.UNKNOWN_TIMED_OUT -> {
+                status = "A verificação do ARCore demorou demais. Confirme a internet do celular e toque novamente em ABRIR RA."
+            }
+
+            ArCoreApk.Availability.UNKNOWN_ERROR -> {
+                status = "Não foi possível verificar o ARCore neste celular. Atualize a Play Store e o Google Play Services para RA."
+            }
+        }
+    }
 
     if (showAr && project != null) {
-        ARSheetViewer(project = project!!, onBack = { showAr = false })
+        ARSheetViewer(project = project!!, onBack = {
+            showAr = false
+            refreshArAvailability()
+        })
         return
     }
 
@@ -98,8 +167,18 @@ private fun RevitArApp(ensureCameraPermission: () -> Unit) {
                             scope.launch {
                                 try {
                                     project = ProjectLoader.load(manifestUrl)
-                                    status = "Projeto carregado. Aponte para a prancha para iniciar o AR."
-                                    showAr = true
+                                    val availability = refreshArAvailability()
+                                    status = when (availability) {
+                                        ArCoreApk.Availability.SUPPORTED_INSTALLED ->
+                                            "Projeto carregado. ARCore pronto. Toque em ABRIR REALIDADE AUMENTADA."
+                                        ArCoreApk.Availability.SUPPORTED_APK_TOO_OLD,
+                                        ArCoreApk.Availability.SUPPORTED_NOT_INSTALLED ->
+                                            "Projeto carregado. Falta instalar/atualizar o Google Play Services para RA."
+                                        ArCoreApk.Availability.UNSUPPORTED_DEVICE_NOT_CAPABLE ->
+                                            "Projeto carregado, mas este celular não é compatível com ARCore."
+                                        else ->
+                                            "Projeto carregado. Toque em VERIFICAR / ABRIR RA para concluir a verificação."
+                                    }
                                 } catch (e: Exception) {
                                     status = "Não consegui carregar o projeto: ${e.message ?: "erro"}. Confirme que PC e celular estão no mesmo Wi-Fi e mantenha o Revit aberto."
                                 } finally {
@@ -126,14 +205,36 @@ private fun RevitArApp(ensureCameraPermission: () -> Unit) {
                         Text("Vista: ${p.planName}")
                         Text("Modelo: %.2f × %.2f × %.2f m".format(p.width, p.depth, p.height))
                         Text("Marcadores AR: ${p.markers.size}")
+
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            when (arAvailability) {
+                                ArCoreApk.Availability.SUPPORTED_INSTALLED -> "RA: pronta"
+                                ArCoreApk.Availability.SUPPORTED_APK_TOO_OLD -> "RA: precisa atualizar"
+                                ArCoreApk.Availability.SUPPORTED_NOT_INSTALLED -> "RA: precisa instalar"
+                                ArCoreApk.Availability.UNSUPPORTED_DEVICE_NOT_CAPABLE -> "RA: aparelho incompatível"
+                                ArCoreApk.Availability.UNKNOWN_CHECKING -> "RA: verificando..."
+                                ArCoreApk.Availability.UNKNOWN_TIMED_OUT -> "RA: verificação expirou"
+                                ArCoreApk.Availability.UNKNOWN_ERROR -> "RA: erro de verificação"
+                                null -> "RA: ainda não verificada"
+                            }
+                        )
                     }
                 }
+
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = {
-                    ensureCameraPermission()
-                    showAr = true
-                }) {
-                    Text("ABRIR REALIDADE AUMENTADA")
+                Button(onClick = { tryOpenAr() }) {
+                    Text("VERIFICAR / ABRIR RA")
+                }
+
+                if (
+                    arAvailability == ArCoreApk.Availability.SUPPORTED_APK_TOO_OLD ||
+                    arAvailability == ArCoreApk.Availability.SUPPORTED_NOT_INSTALLED
+                ) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = { openArCoreStore(activity) }) {
+                        Text("INSTALAR / ATUALIZAR GOOGLE RA")
+                    }
                 }
             }
 
@@ -146,7 +247,7 @@ private fun RevitArApp(ensureCameraPermission: () -> Unit) {
             Text(status)
             Spacer(Modifier.height(12.dp))
             Text(
-                "Depois de escanear o QR, aponte a câmera para um dos marcadores AR impressos na folha. O QR identifica o projeto; os marcadores fazem o alinhamento do 3D."
+                "O app só abre a câmera AR quando o Google Play Services para RA estiver instalado e atualizado. Assim ele não trava no aviso do sistema."
             )
         }
     }
