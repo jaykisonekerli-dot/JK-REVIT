@@ -1,12 +1,11 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "br.com.jk.revitar"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "br.com.jk.revitar"
@@ -29,12 +28,6 @@ android {
         release {
             isMinifyEnabled = false
         }
-    }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
