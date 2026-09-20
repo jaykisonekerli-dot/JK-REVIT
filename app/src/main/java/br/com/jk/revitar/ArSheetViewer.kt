@@ -84,7 +84,7 @@ fun ARSheetViewer(project: RevitProject, onBack: () -> Unit) {
                     AnchorNode(anchor = currentAnchor) {
                         rememberModelInstance(
                             modelLoader = modelLoader,
-                            url = project.modelUrl
+                            assetFileLocation = project.modelUrl
                         )?.let { instance ->
                             ModelNode(
                                 modelInstance = instance,
