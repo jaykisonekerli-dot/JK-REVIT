@@ -1,13 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.VIBRATE" />
-
-    <uses-feature
-        android:name="android.hardware.camera.ar"
-        android:required="true" />
 
     <application
         android:allowBackup="true"
@@ -17,8 +12,7 @@
 
         <meta-data
             android:name="com.google.ar.core"
-            android:value="required"
-            tools:replace="android:value" />
+            android:value="optional" />
 
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
